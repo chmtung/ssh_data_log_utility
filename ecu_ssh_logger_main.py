@@ -13,7 +13,7 @@ from config import argument_cfg
 from windows import environ
 
 #------------CONFIG-----------------------
-utility_version  = 'v1.1'
+utility_version  = 'v1.2'
 product_version  = 'ESOM012-ECU01'
 HOST_IP          = '192.168.10.3'
 N310_CHECK_CMD   = 'uhd_usrp_probe --version'
@@ -62,9 +62,11 @@ class EcuN310SshLogger(object):
         self.ip = ip
         self.ui = ui
         self.args = args
+        self.loggingInterval = LOGGING_INTERVAL
 
     def welcomeMassage(self):
         ask_serial_number_msg = 'Please enter the S/N "Last 4 numbers" in 1040009-XXXX (from 0000 to 9999) : '
+        ask_logging_interval_msg = 'Please enter logging interval time (press any key to use default 300 sec) : '
         welcome_msg_tmp =  welcome_msg.replace("product_version", product_version)
         welcome_msg_tmp =  welcome_msg_tmp.replace("utility_version", utility_version + (" " * 13))
         self.ui.printI(welcome_msg_tmp)
@@ -74,14 +76,26 @@ class EcuN310SshLogger(object):
             # Skip question
             self._serial_umber = '1040009-0000'
         else:
+            #Ask question 1
             while True:
                 sn = input(self.ui.returnI(ask_serial_number_msg))
                 # Check input is a int number
                 if sn.isdigit() and (len(sn) is 4):
-                    sn = int(sn)
-                    if (sn >= 0000) and (sn <= 9999):
-                        self._serial_umber = '1040009-' + str(sn)
+                    if (int(sn) >= 0) and (int(sn) <= 9999):
+                        self._serial_umber = '1040009-' + sn
                         break
+            # Ask question 2
+            while True:
+                log_time = input(self.ui.returnI(ask_logging_interval_msg))
+                # Check input is a int number
+                if log_time.isdigit():
+                    log_time = int(log_time)
+                    if (log_time >= 0) and (log_time <= 9999):
+                        self.loggingInterval = log_time
+                        break
+                else:
+                    break
+        self.loggingInterval
         return True
 
     def checkOperatingSystem(self):
@@ -123,7 +137,6 @@ class EcuN310SshLogger(object):
                 result = True
                 self.ui.logPassMsg('Target IP:' + self.ip)
                 break
-
             self._sraech_ip_retry -= 1
             time.sleep(1)
         if self._sraech_ip_retry is 0:
@@ -165,9 +178,9 @@ class EcuN310SshLogger(object):
 
     def readTemperature(self):
         result = False
-        global exe_stamp
-        global exe_stamp_prev
-        global exe_interval
+        exe_stamp = 0
+        exe_stamp_prev = 0
+        exe_interval = 0
 
         self.ui.printI('\nYou can keep pressing [e] or [E] to escape\n')
 
@@ -210,7 +223,7 @@ class EcuN310SshLogger(object):
                 if (answer is ord("e")) or (answer is ord("E")):
                     result = True
                     break
-            if exe_interval >= LOGGING_INTERVAL:
+            if exe_interval >= self.loggingInterval:
                 result = True
                 break
         # Close connection.
@@ -315,14 +328,6 @@ def displayEndMessage(update_result = False):
                     break
 
 def mainFunction():
-    global exe_stamp
-    global exe_stamp_prev
-    global exe_interval
-
-    exe_stamp = 0
-    exe_stamp_prev = 0
-    exe_interval = 0
-
     # I.  Config console window size
     cconsole.windowConfig(109, 40, 200)  # width, height, line buffer
     cconsole.quick_edit_mode(False)
